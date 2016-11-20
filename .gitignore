@@ -15,3 +15,7 @@ reports/
 # Annoying tilde's from GEdit
 *~
 
+/bin/
+/.classpath
+/.project
+/output/

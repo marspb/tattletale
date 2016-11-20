@@ -21,165 +21,176 @@
  */
 package org.jboss.tattletale.reporting;
 
-import org.jboss.tattletale.core.Archive;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Set;
+import java.util.TreeSet;
+
+import org.jboss.tattletale.core.Archive;
+import org.jboss.tattletale.core.NestableArchive;
 
 /**
  * A report that shows unused JAR archives
  *
  * @author Jesper Pedersen <jesper.pedersen@jboss.org>
  */
-public class UnusedJarReport extends AbstractReport
-{
-   /** NAME */
-   private static final String NAME = "Unused Jar";
+public class UnusedJarReport extends AbstractReport {
+	/** NAME */
+	private static final String NAME = "Unused Jar";
 
-   /** DIRECTORY */
-   private static final String DIRECTORY = "unusedjar";
+	/** DIRECTORY */
+	private static final String DIRECTORY = "unusedjar";
 
-   /** Constructor */
-   public UnusedJarReport()
-   {
-      super(DIRECTORY, ReportSeverity.WARNING, NAME, DIRECTORY);
-   }
+	/** Constructor */
+	public UnusedJarReport() {
+		super(DIRECTORY, ReportSeverity.WARNING, NAME, DIRECTORY);
+	}
 
-   /**
-    * Write out the report's content
-    *
-    * @param bw the writer to use
-    * @throws IOException if an error occurs
-    */
-   public void writeHtmlBodyContent(BufferedWriter bw) throws IOException
-   {
-      bw.write("<table>" + Dump.newLine());
+	/**
+	 * Write out the report's content
+	 *
+	 * @param bw
+	 *            the writer to use
+	 * @throws IOException
+	 *             if an error occurs
+	 */
+	public void writeHtmlBodyContent(BufferedWriter bw) throws IOException {
+		bw.write("<table>" + Dump.newLine());
 
-      bw.write("  <tr>" + Dump.newLine());
-      bw.write("     <th>Archive</th>" + Dump.newLine());
-      bw.write("     <th>Used</th>" + Dump.newLine());
-      bw.write("  </tr>" + Dump.newLine());
+		bw.write("  <tr>" + Dump.newLine());
+		bw.write("     <th>Archive</th>" + Dump.newLine());
+		bw.write("     <th>Used</th>" + Dump.newLine());
+		bw.write("  </tr>" + Dump.newLine());
 
-      boolean odd = true;
-      int used = 0;
-      int unused = 0;
+		boolean odd = true;
+		int used = 0;
+		int unused = 0;
 
-      for (Archive archive : archives)
-      {
-         boolean archiveStatus = false;
+		Set<Archive> includingSubarchives = new TreeSet<Archive>(archives);
 
-         String archiveName = archive.getName();
-         int finalDot = archiveName.lastIndexOf(".");
-         String extension = archiveName.substring(finalDot + 1);
+		for (Archive archive : archives) {
+			if (archive instanceof NestableArchive) {
+				for (Archive nested : ((NestableArchive) archive).getSubArchives()) {
+					if (!includingSubarchives.contains(nested)) {
+						includingSubarchives.add(nested);
+					}
+				}
+			}
+		}
 
-         Iterator<Archive> it = archives.iterator();
-         while (!archiveStatus && it.hasNext())
-         {
-            Archive a = it.next();
+		for (Archive archive : includingSubarchives) {
+			boolean archiveStatus = false;
 
-            if (!archive.getName().equals(a.getName()))
-            {
-               Iterator<String> sit = a.getRequires().iterator();
-               while (!archiveStatus && sit.hasNext())
-               {
-                  String require = sit.next();
+			String archiveName = archive.getName();
 
-                  if (archive.getProvides().keySet().contains(require))
-                  {
-                     archiveStatus = true;
-                  }
-               }
-            }
-         }
+			Iterator<Archive> it = includingSubarchives.iterator();
+			while (!archiveStatus && it.hasNext()) {
+				Archive a = it.next();
 
+				if (!archive.getName().equals(a.getName())) {
+					Iterator<String> sit = a.getRequires().iterator();
+					while (!archiveStatus && sit.hasNext()) {
+						String require = sit.next();
 
-         if (odd)
-         {
-            bw.write("  <tr class=\"rowodd\">" + Dump.newLine());
-         }
-         else
-         {
-            bw.write("  <tr class=\"roweven\">" + Dump.newLine());
-         }
-         bw.write("     <td><a href=\"../" + extension + "/" + archiveName +
-                  ".html\">" + archiveName + "</a></td>" + Dump.newLine());
+						if (archive.getProvides().keySet().contains(require)) {
+							archiveStatus = true;
+						}
+					}
+				}
+			}
 
-         if (archiveStatus)
-         {
-            bw.write("     <td style=\"color: green;\">Yes</td>" + Dump.newLine());
-            used++;
-         }
-         else
-         {
-            unused++;
+			if (odd) {
+				bw.write("  <tr class=\"rowodd\">" + Dump.newLine());
+			} else {
+				bw.write("  <tr class=\"roweven\">" + Dump.newLine());
+			}
+			bw.write("     <td><a href=\"../" + getSubpathToArchive(archive) + "/" + archiveName + ".html\">"
+					+ archiveName + "</a></td>" + Dump.newLine());
 
-            if (!isFiltered(archive.getName()))
-            {
-               status = ReportStatus.YELLOW;
-               bw.write("     <td style=\"color: red;\">No</td>" + Dump.newLine());
-            }
-            else
-            {
-               bw.write("     <td style=\"color: red; text-decoration: line-through;\">No</td>" + Dump.newLine());
-            }
-         }
+			if (archiveStatus) {
+				bw.write("     <td style=\"color: green;\">Yes</td>" + Dump.newLine());
+				used++;
+			} else {
+				unused++;
 
-         bw.write("  </tr>" + Dump.newLine());
+				if (!isFiltered(archive.getName())) {
+					status = ReportStatus.YELLOW;
+					bw.write("     <td style=\"color: red;\">No</td>" + Dump.newLine());
+				} else {
+					bw.write("     <td style=\"color: red; text-decoration: line-through;\">No</td>" + Dump.newLine());
+				}
+			}
 
-         odd = !odd;
-      }
+			bw.write("  </tr>" + Dump.newLine());
 
-      bw.write("</table>" + Dump.newLine());
+			odd = !odd;
+		}
 
-      bw.write(Dump.newLine());
-      bw.write("<p>" + Dump.newLine());
+		bw.write("</table>" + Dump.newLine());
 
-      bw.write("<table>" + Dump.newLine());
+		bw.write(Dump.newLine());
+		bw.write("<p>" + Dump.newLine());
 
-      bw.write("  <tr>" + Dump.newLine());
-      bw.write("     <th>Status</th>" + Dump.newLine());
-      bw.write("     <th>Archives</th>" + Dump.newLine());
-      bw.write("  </tr>" + Dump.newLine());
+		bw.write("<table>" + Dump.newLine());
 
-      bw.write("  <tr class=\"rowodd\">" + Dump.newLine());
-      bw.write("     <td>Used</td>" + Dump.newLine());
-      bw.write("     <td style=\"color: green;\">" + used + "</td>" + Dump.newLine());
-      bw.write("  </tr>" + Dump.newLine());
+		bw.write("  <tr>" + Dump.newLine());
+		bw.write("     <th>Status</th>" + Dump.newLine());
+		bw.write("     <th>Archives</th>" + Dump.newLine());
+		bw.write("  </tr>" + Dump.newLine());
 
-      bw.write("  <tr class=\"roweven\">" + Dump.newLine());
-      bw.write("     <td>Unused</td>" + Dump.newLine());
-      bw.write("     <td style=\"color: red;\">" + unused + "</td>" + Dump.newLine());
-      bw.write("  </tr>" + Dump.newLine());
+		bw.write("  <tr class=\"rowodd\">" + Dump.newLine());
+		bw.write("     <td>Used</td>" + Dump.newLine());
+		bw.write("     <td style=\"color: green;\">" + used + "</td>" + Dump.newLine());
+		bw.write("  </tr>" + Dump.newLine());
 
-      bw.write("</table>" + Dump.newLine());
-   }
+		bw.write("  <tr class=\"roweven\">" + Dump.newLine());
+		bw.write("     <td>Unused</td>" + Dump.newLine());
+		bw.write("     <td style=\"color: red;\">" + unused + "</td>" + Dump.newLine());
+		bw.write("  </tr>" + Dump.newLine());
 
-   /**
-    * write out the header of the report's content
-    *
-    * @param bw the writer to use
-    * @throws IOException if an errror occurs
-    */
-   public void writeHtmlBodyHeader(BufferedWriter bw) throws IOException
-   {
-      bw.write("<body>" + Dump.newLine());
-      bw.write(Dump.newLine());
+		bw.write("</table>" + Dump.newLine());
+	}
 
-      bw.write("<h1>" + NAME + "</h1>" + Dump.newLine());
+	private String getSubpathToArchive(Archive archive) {
+		String subpathToArchive = getExtension(archive.getName());
+		while ((archive = archive.getParentArchive()) != null) {
+			subpathToArchive = getExtension(archive.getName()) + "/" + subpathToArchive;
+		}
+		return subpathToArchive;
+	}
 
-      bw.write("<a href=\"../index.html\">Main</a>" + Dump.newLine());
-      bw.write("<p>" + Dump.newLine());
-   }
+	private String getExtension(String fileName) {
+		int finalDot = fileName.lastIndexOf(".");
+		String extension = fileName.substring(finalDot + 1);
+		return extension;
+	}
 
-   /**
-    * Create filter
-    *
-    * @return The filter
-    */
-   @Override
-   protected Filter createFilter()
-   {
-      return new KeyFilter();
-   }
+	/**
+	 * write out the header of the report's content
+	 *
+	 * @param bw
+	 *            the writer to use
+	 * @throws IOException
+	 *             if an errror occurs
+	 */
+	public void writeHtmlBodyHeader(BufferedWriter bw) throws IOException {
+		bw.write("<body>" + Dump.newLine());
+		bw.write(Dump.newLine());
+
+		bw.write("<h1>" + NAME + "</h1>" + Dump.newLine());
+
+		bw.write("<a href=\"../index.html\">Main</a>" + Dump.newLine());
+		bw.write("<p>" + Dump.newLine());
+	}
+
+	/**
+	 * Create filter
+	 *
+	 * @return The filter
+	 */
+	@Override
+	protected Filter createFilter() {
+		return new KeyFilter();
+	}
 }

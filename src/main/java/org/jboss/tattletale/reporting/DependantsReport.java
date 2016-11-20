@@ -21,15 +21,16 @@
  */
 package org.jboss.tattletale.reporting;
 
-import org.jboss.tattletale.core.Archive;
-import org.jboss.tattletale.core.NestableArchive;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+
+import org.jboss.tattletale.core.Archive;
+import org.jboss.tattletale.core.NestableArchive;
 
 /**
  * Dependants report
@@ -37,142 +38,141 @@ import java.util.TreeSet;
  * @author Jesper Pedersen <jesper.pedersen@jboss.org>
  * @author <a href="mailto:torben.jaeger@jit-consulting.de">Torben Jaeger</a>
  */
-public class DependantsReport extends CLSReport
-{
+public class DependantsReport extends CLSReport {
 
-   /** NAME */
-   private static final String NAME = "Dependants";
+	/** NAME */
+	private static final String NAME = "Dependants";
 
-   /** DIRECTORY */
-   private static final String DIRECTORY = "dependants";
+	/** DIRECTORY */
+	private static final String DIRECTORY = "dependants";
 
+	/** Constructor */
+	public DependantsReport() {
+		super(DIRECTORY, ReportSeverity.INFO, NAME, DIRECTORY);
+	}
 
-   /** Constructor */
-   public DependantsReport()
-   {
-      super(DIRECTORY, ReportSeverity.INFO, NAME, DIRECTORY);
-   }
+	/**
+	 * write out the report's content
+	 *
+	 * @param bw
+	 *            the writer to use
+	 * @throws IOException
+	 *             if an error occurs
+	 */
+	public void writeHtmlBodyContent(BufferedWriter bw) throws IOException {
+		bw.write("<table>" + Dump.newLine());
 
-   /**
-    * write out the report's content
-    *
-    * @param bw the writer to use
-    * @throws IOException if an error occurs
-    */
-   public void writeHtmlBodyContent(BufferedWriter bw) throws IOException
-   {
-      bw.write("<table>" + Dump.newLine());
+		bw.write("  <tr>" + Dump.newLine());
+		bw.write("     <th>Archive</th>" + Dump.newLine());
+		bw.write("     <th>Dependants</th>" + Dump.newLine());
 
-      bw.write("  <tr>" + Dump.newLine());
-      bw.write("     <th>Archive</th>" + Dump.newLine());
-      bw.write("     <th>Dependants</th>" + Dump.newLine());
+		boolean odd = true;
 
-      boolean odd = true;
+		Set<Archive> includingSubarchives = new TreeSet<Archive>(archives);
 
-      for (Archive archive : archives)
-      {
-         String archiveName = archive.getName();
-         int finalDot = archiveName.lastIndexOf(".");
-         String extension = archiveName.substring(finalDot + 1);
+		for (Archive archive : archives) {
+			if (archive instanceof NestableArchive) {
+				for (Archive nested : ((NestableArchive) archive).getSubArchives()) {
+					if (!includingSubarchives.contains(nested)) {
+						includingSubarchives.add(nested);
+					}
+				}
+			}
+		}
 
-         if (odd)
-         {
-            bw.write("  <tr class=\"rowodd\">" + Dump.newLine());
-         }
-         else
-         {
-            bw.write("  <tr class=\"roweven\">" + Dump.newLine());
-         }
-         bw.write("     <td><a href=\"../" + extension + "/" + archiveName + ".html\">" +
-               archiveName + "</a></td>" + Dump.newLine());
-         bw.write("     <td>");
+		for (Archive archive : includingSubarchives) {
+			String archiveName = archive.getName();
 
+			if (odd) {
+				bw.write("  <tr class=\"rowodd\">" + Dump.newLine());
+			} else {
+				bw.write("  <tr class=\"roweven\">" + Dump.newLine());
+			}
+			bw.write("     <td><a href=\"../" + getSubpathToArchive(archive) + "/" + archiveName + ".html\">"
+					+ archiveName + "</a></td>" + Dump.newLine());
+			bw.write("     <td>");
 
-         SortedSet<String> result = new TreeSet<String>();
+			SortedSet<Archive> result = new TreeSet<Archive>();
 
-         for (Archive a : archives)
-         {
+			for (Archive a : includingSubarchives) {
 
-            for (String require : getRequires(archive))
-            {
+				for (String require : getRequires(a)) {
 
-               if (archive.doesProvide(require) && (getCLS() == null || getCLS().isVisible(a, archive)))
-               {
-                  result.add(a.getName());
-               }
-            }
-         }
+					if (archive.doesProvide(require) && (getCLS() == null || getCLS().isVisible(a, archive))) {
+						result.add(a);
+					}
+				}
+			}
 
-         if (result.size() == 0)
-         {
-            bw.write("&nbsp;");
-         }
-         else
-         {
-            Iterator<String> resultIt = result.iterator();
-            while (resultIt.hasNext())
-            {
-               String r = resultIt.next();
-               if (r.endsWith(".jar"))
-               {
-                  bw.write("<a href=\"../jar/" + r + ".html\">" + r + "</a>");
-               }
-               else
-               {
-                  bw.write("<i>" + r + "</i>");
-               }
+			if (result.size() == 0) {
+				bw.write("&nbsp;");
+			} else {
+				Iterator<Archive> resultIt = result.iterator();
+				while (resultIt.hasNext()) {
+					Archive a = resultIt.next();
+					bw.write("<a href=\"../" + getSubpathToArchive(a) + "/" + a.getName() + ".html\">" + a.getName()
+							+ "</a>");
 
-               if (resultIt.hasNext())
-               {
-                  bw.write(", ");
-               }
-            }
-         }
+					if (resultIt.hasNext()) {
+						bw.write(", ");
+					}
+				}
+			}
 
-         bw.write("</td>" + Dump.newLine());
-         bw.write("  </tr>" + Dump.newLine());
+			bw.write("</td>" + Dump.newLine());
+			bw.write("  </tr>" + Dump.newLine());
 
-         odd = !odd;
-      }
+			odd = !odd;
+		}
 
-      bw.write("  </tr>" + Dump.newLine());
-      bw.write("</table>" + Dump.newLine());
-   }
+		bw.write("  </tr>" + Dump.newLine());
+		bw.write("</table>" + Dump.newLine());
+	}
 
-   private SortedSet<String> getRequires(Archive archive)
-   {
-      SortedSet<String> requires = new TreeSet<String>();
-      if (archive instanceof NestableArchive)
-      {
-         NestableArchive nestableArchive = (NestableArchive) archive;
-         List<Archive> subArchives = nestableArchive.getSubArchives();
-         requires.addAll(nestableArchive.getRequires());
-         for (Archive sa : subArchives)
-         {
-            requires.addAll(getRequires(sa));
-         }
-      }
-      else
-      {
-         requires.addAll(archive.getRequires());
-      }
-      return requires;
-   }
+	private String getSubpathToArchive(Archive archive) {
+		String subpathToArchive = getExtension(archive.getName());
+		while ((archive = archive.getParentArchive()) != null) {
+			subpathToArchive = getExtension(archive.getName()) + "/" + subpathToArchive;
+		}
+		return subpathToArchive;
+	}
 
-   /**
-    * write out the header of the report's content
-    *
-    * @param bw the writer to use
-    * @throws IOException if an error occurs
-    */
-   public void writeHtmlBodyHeader(BufferedWriter bw) throws IOException
-   {
-      bw.write("<body>" + Dump.newLine());
-      bw.write(Dump.newLine());
+	private String getExtension(String fileName) {
+		int finalDot = fileName.lastIndexOf(".");
+		String extension = fileName.substring(finalDot + 1);
+		return extension;
+	}
 
-      bw.write("<h1>" + NAME + "</h1>" + Dump.newLine());
+	private SortedSet<String> getRequires(Archive archive) {
+		SortedSet<String> requires = new TreeSet<String>();
+		if (archive instanceof NestableArchive) {
+			NestableArchive nestableArchive = (NestableArchive) archive;
+			List<Archive> subArchives = nestableArchive.getSubArchives();
+			requires.addAll(nestableArchive.getRequires());
+			for (Archive sa : subArchives) {
+				requires.addAll(getRequires(sa));
+			}
+		} else {
+			requires.addAll(archive.getRequires());
+		}
+		return requires;
+	}
 
-      bw.write("<a href=\"../index.html\">Main</a>" + Dump.newLine());
-      bw.write("<p>" + Dump.newLine());
-   }
+	/**
+	 * write out the header of the report's content
+	 *
+	 * @param bw
+	 *            the writer to use
+	 * @throws IOException
+	 *             if an error occurs
+	 */
+	public void writeHtmlBodyHeader(BufferedWriter bw) throws IOException {
+		bw.write("<body>" + Dump.newLine());
+		bw.write(Dump.newLine());
+
+		bw.write("<h1>" + NAME + "</h1>" + Dump.newLine());
+
+		bw.write("<a href=\"../index.html\">Main</a>" + Dump.newLine());
+		bw.write("<p>" + Dump.newLine());
+	}
 }

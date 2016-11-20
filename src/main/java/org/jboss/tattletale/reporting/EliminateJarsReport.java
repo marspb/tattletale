@@ -21,16 +21,16 @@
  */
 package org.jboss.tattletale.reporting;
 
-import org.jboss.tattletale.core.Archive;
-import org.jboss.tattletale.core.Location;
-import org.jboss.tattletale.core.NestableArchive;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+
+import org.jboss.tattletale.core.Archive;
+import org.jboss.tattletale.core.Location;
+import org.jboss.tattletale.core.NestableArchive;
 
 /**
  * Eliminate JAR files with multiple versions
@@ -38,176 +38,149 @@ import java.util.TreeSet;
  * @author Jesper Pedersen <jesper.pedersen@jboss.org>
  * @author <a href="mailto:torben.jaeger@jit-consulting.de">Torben Jaeger</a>
  */
-public class EliminateJarsReport extends AbstractReport
-{
-   /** NAME */
-   private static final String NAME = "Eliminate Jar files with different versions";
+public class EliminateJarsReport extends AbstractReport {
+	/** NAME */
+	private static final String NAME = "Eliminate Jar files with different versions";
 
-   /** DIRECTORY */
-   private static final String DIRECTORY = "eliminatejars";
+	/** DIRECTORY */
+	private static final String DIRECTORY = "eliminatejars";
 
-   /** Constructor */
-   public EliminateJarsReport()
-   {
-      super(DIRECTORY, ReportSeverity.WARNING, NAME, DIRECTORY);
-   }
+	/** Constructor */
+	public EliminateJarsReport() {
+		super(DIRECTORY, ReportSeverity.WARNING, NAME, DIRECTORY);
+	}
 
-   /**
-    * write out the report's content
-    *
-    * @param bw the writer to use
-    * @throws IOException if an error occurs
-    */
-   public void writeHtmlBodyContent(BufferedWriter bw) throws IOException
-   {
-      bw.write("<table>" + Dump.newLine());
+	/**
+	 * write out the report's content
+	 *
+	 * @param bw
+	 *            the writer to use
+	 * @throws IOException
+	 *             if an error occurs
+	 */
+	public void writeHtmlBodyContent(BufferedWriter bw) throws IOException {
+		bw.write("<table>" + Dump.newLine());
 
-      bw.write("  <tr>" + Dump.newLine());
-      bw.write("     <th>Archive</th>" + Dump.newLine());
-      bw.write("     <th>Location</th>" + Dump.newLine());
-      bw.write("  </tr>" + Dump.newLine());
+		bw.write("  <tr>" + Dump.newLine());
+		bw.write("     <th>Archive</th>" + Dump.newLine());
+		bw.write("     <th>Location</th>" + Dump.newLine());
+		bw.write("  </tr>" + Dump.newLine());
 
-      boolean odd = true;
+		Set<Archive> includingSubarchives = new TreeSet<Archive>(archives);
 
-      for (Archive archive : archives)
-      {
-         String archiveName = archive.getName();
-         int finalDot = archiveName.lastIndexOf(".");
-         String extension = archiveName.substring(finalDot + 1);
+		for (Archive archive : archives) {
+			if (archive instanceof NestableArchive) {
+				for (Archive nested : ((NestableArchive) archive).getSubArchives()) {
+					if (!includingSubarchives.contains(nested)) {
+						includingSubarchives.add(nested);
+					}
+				}
+			}
+		}
 
-         SortedSet<Location> locations = getLocations(archive);
-         Iterator<Location> lit = locations.iterator();
+		boolean odd = true;
 
-         Location location = lit.next();
+		for (Archive archive : includingSubarchives) {
+			String archiveName = archive.getName();
+			int finalDot = archiveName.lastIndexOf(".");
+			String extension = archiveName.substring(finalDot + 1);
 
-         boolean include = false;
-         String version = location.getVersion();
-         boolean filtered = isFiltered(archive.getName());
+			SortedSet<Location> locations = archive.getLocations();
+			Iterator<Location> lit = locations.iterator();
 
-         while (!include && lit.hasNext())
-         {
-            location = lit.next();
+			Location location = lit.next();
 
-            //noinspection StringEquality
-            if (version == location.getVersion() || (version != null && version.equals(location.getVersion())))
-            {
-               // Same version identifier - just continue
-            }
-            else
-            {
-               include = true;
+			boolean include = false;
+			String version = location.getVersion();
+			boolean filtered = isFiltered(archive.getName());
 
-               if (!filtered)
-               {
-                  status = ReportStatus.RED;
-               }
-            }
-         }
+			while (!include && lit.hasNext()) {
+				location = lit.next();
 
-         if (include)
-         {
-            if (odd)
-            {
-               bw.write("  <tr class=\"rowodd\">" + Dump.newLine());
-            }
-            else
-            {
-               bw.write("  <tr class=\"roweven\">" + Dump.newLine());
-            }
-            bw.write("     <td><a href=\"../" + extension + "/" + archiveName +
-                     ".html\">" + archiveName + "</a></td>" + Dump.newLine());
-            bw.write("     <td>");
+				// noinspection StringEquality
+				if (version == location.getVersion() || (version != null && version.equals(location.getVersion()))) {
+					// Same version identifier - just continue
+				} else {
+					include = true;
 
-            bw.write("       <table>" + Dump.newLine());
+					if (!filtered) {
+						status = ReportStatus.RED;
+					}
+				}
+			}
 
-            lit = locations.iterator();
-            while (lit.hasNext())
-            {
-               location = lit.next();
+			if (include) {
+				if (odd) {
+					bw.write("  <tr class=\"rowodd\">" + Dump.newLine());
+				} else {
+					bw.write("  <tr class=\"roweven\">" + Dump.newLine());
+				}
+				bw.write("     <td><a href=\"../" + extension + "/" + archiveName + ".html\">" + archiveName
+						+ "</a></td>" + Dump.newLine());
+				bw.write("     <td>");
 
-               bw.write("      <tr>" + Dump.newLine());
+				bw.write("       <table>" + Dump.newLine());
 
-               bw.write("        <td>" + location.getFilename() + "</td>" + Dump.newLine());
-               if (!filtered)
-               {
-                  bw.write("        <td>");
-               }
-               else
-               {
-                  bw.write("        <td style=\"text-decoration: line-through;\">");
-               }
-               if (location.getVersion() != null)
-               {
-                  bw.write(location.getVersion());
-               }
-               else
-               {
-                  bw.write("<i>Not listed</i>");
-               }
-               bw.write("</td>" + Dump.newLine());
+				lit = locations.iterator();
+				while (lit.hasNext()) {
+					location = lit.next();
 
-               bw.write("      </tr>" + Dump.newLine());
-            }
+					bw.write("      <tr>" + Dump.newLine());
 
-            bw.write("       </table>" + Dump.newLine());
+					bw.write("        <td>" + location.getFilename() + "</td>" + Dump.newLine());
+					if (!filtered) {
+						bw.write("        <td>");
+					} else {
+						bw.write("        <td style=\"text-decoration: line-through;\">");
+					}
+					if (location.getVersion() != null) {
+						bw.write(location.getVersion());
+					} else {
+						bw.write("<i>Not listed</i>");
+					}
+					bw.write("</td>" + Dump.newLine());
 
-            bw.write("</td>" + Dump.newLine());
-            bw.write("  </tr>" + Dump.newLine());
+					bw.write("      </tr>" + Dump.newLine());
+				}
 
-            odd = !odd;
-         }
+				bw.write("       </table>" + Dump.newLine());
 
-      }
+				bw.write("</td>" + Dump.newLine());
+				bw.write("  </tr>" + Dump.newLine());
 
-      bw.write("</table>" + Dump.newLine());
-   }
+				odd = !odd;
+			}
 
+		}
 
-   private SortedSet<Location> getLocations(Archive archive)
-   {
-      SortedSet<Location> locations = new TreeSet<Location>();
-      if (archive instanceof NestableArchive)
-      {
-         NestableArchive nestableArchive = (NestableArchive) archive;
-         List<Archive> subArchives = nestableArchive.getSubArchives();
+		bw.write("</table>" + Dump.newLine());
+	}
 
-         for (Archive sa : subArchives)
-         {
-            locations.addAll(getLocations(sa));
-         }
-      }
-      else
-      {
-         locations.addAll(archive.getLocations());
-      }
-      return locations;
-   }
+	/**
+	 * write out the header of the report's content
+	 *
+	 * @param bw
+	 *            the writer to use
+	 * @throws IOException
+	 *             if an errror occurs
+	 */
+	public void writeHtmlBodyHeader(BufferedWriter bw) throws IOException {
+		bw.write("<body>" + Dump.newLine());
+		bw.write(Dump.newLine());
 
-   /**
-    * write out the header of the report's content
-    *
-    * @param bw the writer to use
-    * @throws IOException if an errror occurs
-    */
-   public void writeHtmlBodyHeader(BufferedWriter bw) throws IOException
-   {
-      bw.write("<body>" + Dump.newLine());
-      bw.write(Dump.newLine());
+		bw.write("<h1>" + NAME + "</h1>" + Dump.newLine());
 
-      bw.write("<h1>" + NAME + "</h1>" + Dump.newLine());
+		bw.write("<a href=\"../index.html\">Main</a>" + Dump.newLine());
+		bw.write("<p>" + Dump.newLine());
+	}
 
-      bw.write("<a href=\"../index.html\">Main</a>" + Dump.newLine());
-      bw.write("<p>" + Dump.newLine());
-   }
-
-   /**
-    * Create filter
-    *
-    * @return The filter
-    */
-   @Override
-   protected Filter createFilter()
-   {
-      return new KeyFilter();
-   }
+	/**
+	 * Create filter
+	 *
+	 * @return The filter
+	 */
+	@Override
+	protected Filter createFilter() {
+		return new KeyFilter();
+	}
 }
